@@ -22,12 +22,12 @@ set(PACKAGE_URL \"\")
 set(PACKAGE_VERSION \"${PROJECT_VERSION}\")
 set(VERSION \"${PROJECT_VERSION}\")
 
+find_package(Iconv)
 #find_package(GPGRT REQUIRED)
 #find_package(ASSUAN REQUIRED)
-find_package(Iconv)
 include(UtilityFunctions)
-include(CheckCSourceCompiles)
-include(CheckCSourceRuns)
+
+include(mlock)
 
 if(Iconv_FOUND)
 	set(HAVE_ICONV 1)
@@ -57,13 +57,12 @@ sys/mman.h sys/stat.h sys/types.h termio.h unistd.h utime.h wchar.h)
 check_functions(mmap plock seteuid stpcpy mlock)
 
 foreach(t byte ulong)
-string(TOUPPER ${t} ut)
-	check_c_source_compiles("
+	string(TOUPPER ${t} ut)
+	check_compile("Checking whether ${t} is a typedef" "yes" "no" "
 		#define _GNU_SOURCE 1
 		#include <stdlib.h>
 		#include <sys/types.h>
-		int
-		main ()
+		int main ()
 		{
 			#undef ${t}
 			int a = sizeof(${t});
@@ -71,50 +70,6 @@ string(TOUPPER ${t} ut)
 		}"
 	HAVE_${ut}_TYPEDEF)
 endforeach()
-
-
-if(HAVE_MLOCK)
-check_c_source_runs("
-#include <stdlib.h>
-#include <unistd.h>
-#include <errno.h>
-#include <sys/mman.h>
-#include <sys/types.h>
-#include <fcntl.h>
-
-int main()
-{
-    char *pool;
-    int err;
-    long int pgsize;
-
-#if ${HAVE_SYSCONF} && defined(_SC_PAGESIZE)
-    pgsize = sysconf (_SC_PAGESIZE);
-#elif  ${HAVE_GETPAGESIZE}
-    pgsize = getpagesize();
-#else
-    pgsize = -1;
-#endif
-
-    if (pgsize == -1)
-      pgsize = 4096;
-
-    pool = malloc( 4096 + pgsize );
-    if( !pool )
-        return 2;
-    pool += (pgsize - ((long int)pool % pgsize));
-
-    err = mlock( pool, 4096 );
-    if( !err || errno == EPERM || errno == EAGAIN)
-        return 0; /* okay */
-
-    return 1;  /* hmmm */
-}"
-MLOCK_OKAY)
-if(NOT MLOCK_OKAY)
-	set(HAVE_BROKEN_MLOCK 1)
-endif()
-endif()
 
 configure_file(pinentry-config.h.in config.h)
 
